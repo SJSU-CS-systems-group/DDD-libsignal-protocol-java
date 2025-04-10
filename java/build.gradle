@@ -1,16 +1,4 @@
-buildscript {
-    repositories {
-        google()
-        mavenCentral()
-    }
-
-    dependencies {
-        classpath 'com.google.protobuf:protobuf-gradle-plugin:0.8.10'
-    }
-}
-
 apply plugin: 'java'
-apply plugin: 'com.google.protobuf'
 apply plugin: 'maven'
 apply plugin: 'signing'
 
@@ -34,28 +22,9 @@ sourceSets {
 
 dependencies {
     compile "org.whispersystems:curve25519-java:${curve25519_version}"
-    compile 'com.google.protobuf:protobuf-javalite:3.10.0'
+    compile 'com.google.protobuf:protobuf-java:2.5.0'
 
     testCompile ('junit:junit:3.8.2')
-}
-
-protobuf {
-    protoc {
-        artifact = 'com.google.protobuf:protoc:3.21.12'
-    }
-    generateProtoTasks {
-        all().each { task ->
-            task.builtins {
-                java {
-                    option "lite"
-                }
-            }
-        }
-    }
-}
-
-sourceSets {
-    main.proto.srcDir '../protobuf'
 }
 
 
@@ -68,65 +37,48 @@ test {
     include 'org/whispersystems/**'
 }
 
-def isReleaseBuild() {
-    return version.contains("SNAPSHOT") == false
-}
+//signing {
+//    required { isReleaseBuild() && gradle.taskGraph.hasTask("uploadArchives") }
+//    sign configurations.archives
+//}
 
-def getReleaseRepositoryUrl() {
-    return hasProperty('sonatypeRepo') ? sonatypeRepo
-            : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-}
-
-def getRepositoryUsername() {
-    return hasProperty('whisperSonatypeUsername') ? whisperSonatypeUsername : ""
-}
-
-def getRepositoryPassword() {
-    return hasProperty('whisperSonatypePassword') ? whisperSonatypePassword : ""
-}
-
-signing {
-    required { isReleaseBuild() && gradle.taskGraph.hasTask("uploadArchives") }
-    sign configurations.archives
-}
-
-uploadArchives {
-    configuration = configurations.archives
-    repositories.mavenDeployer {
-        beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
-
-        repository(url: getReleaseRepositoryUrl()) {
-            authentication(userName: getRepositoryUsername(), password: getRepositoryPassword())
-        }
-
-        pom.project {
-            name 'signal-protocol-java'
-            packaging 'jar'
-            description 'Signal Protocol cryptography library for Java'
-            url 'https://github.com/WhisperSystems/libsignal-android'
-
-            scm {
-                url 'scm:git@github.com:WhisperSystems/libsignal-android.git'
-                connection 'scm:git@github.com:WhisperSystems/libsignal-android.git'
-                developerConnection 'scm:git@github.com:WhisperSystems/libsignal-android.git'
-            }
-
-            licenses {
-                license {
-                    name 'GPLv3'
-                    url 'https://www.gnu.org/licenses/gpl-3.0.txt'
-                    distribution 'repo'
-                }
-            }
-
-            developers {
-                developer {
-                    name 'Moxie Marlinspike'
-                }
-            }
-        }
-    }
-}
+//uploadArchives {
+//    configuration = configurations.archives
+//    repositories.mavenDeployer {
+//        beforeDeployment { MavenDeployment deployment -> signing.signPom(deployment) }
+//
+//        repository(url: getReleaseRepositoryUrl()) {
+//            authentication(userName: getRepositoryUsername(), password: getRepositoryPassword())
+//        }
+//
+//        pom.project {
+//            name 'signal-protocol-java'
+//            packaging 'jar'
+//            description 'Signal Protocol cryptography library for Java'
+//            url 'https://github.com/WhisperSystems/libsignal-android'
+//
+//            scm {
+//                url 'scm:git@github.com:WhisperSystems/libsignal-android.git'
+//                connection 'scm:git@github.com:WhisperSystems/libsignal-android.git'
+//                developerConnection 'scm:git@github.com:WhisperSystems/libsignal-android.git'
+//            }
+//
+//            licenses {
+//                license {
+//                    name 'GPLv3'
+//                    url 'https://www.gnu.org/licenses/gpl-3.0.txt'
+//                    distribution 'repo'
+//                }
+//            }
+//
+//            developers {
+//                developer {
+//                    name 'Moxie Marlinspike'
+//                }
+//            }
+//        }
+//    }
+//}
 
 task installArchives(type: Upload) {
     description "Installs the artifacts to the local Maven repository."

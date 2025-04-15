@@ -2,7 +2,7 @@ name: Build Modules
 
 on:
   pull_request:
-    branches: main
+    branches: master
 jobs:
   # Github Action to install Maven modules in the root directory 
   compile:

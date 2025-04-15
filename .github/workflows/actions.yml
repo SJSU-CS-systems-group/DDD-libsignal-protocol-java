@@ -1,0 +1,20 @@
+name: Build Modules
+
+on:
+  pull_request:
+    branches: main
+jobs:
+  # Github Action to install Maven modules in the root directory 
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v3
+        with:
+          java-version: "17"
+          distribution: "temurin"
+      - name: Run gradle build on BundleClient, BundleTransport
+        run: ./gradlew build

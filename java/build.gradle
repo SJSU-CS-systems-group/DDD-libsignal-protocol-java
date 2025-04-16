@@ -1,11 +1,19 @@
-apply plugin: 'java'
-apply plugin: 'maven'
-apply plugin: 'signing'
+plugins {
+    id 'java'
+    id 'com.google.protobuf' version '0.9.5'
+    id 'maven-publish'
+    id 'signing'
+}
 
-sourceCompatibility = 1.7
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
+
 archivesBaseName = "signal-protocol-java"
-version          = version_number
-group            = group_info
+version = version_number
+group = group_info
 
 repositories {
     mavenCentral()
@@ -13,6 +21,11 @@ repositories {
 }
 
 sourceSets {
+    main {
+        proto {
+            srcDir '../protobuf'
+        }
+    }
     test {
         java {
             srcDirs = ['src/test/java/', project(':tests').file('src/test/java')]
@@ -21,47 +34,97 @@ sourceSets {
 }
 
 dependencies {
-    compile "org.whispersystems:curve25519-java:${curve25519_version}"
-    compile 'com.google.protobuf:protobuf-java:2.5.0'
+    implementation "org.whispersystems:curve25519-java:${curve25519_version}"
+    implementation 'com.google.protobuf:protobuf-java:3.23.4'
 
-    testCompile ('junit:junit:3.8.2')
+    testImplementation 'junit:junit:3.8.2'
 }
 
-
-test {
-    testLogging {
-        events 'passed'
-        showStandardStreams = true
+protobuf {
+    protoc {
+        artifact = 'com.google.protobuf:protoc:3.23.4'
     }
-
-    include 'org/whispersystems/**'
-}
-
-task installArchives(type: Upload) {
-    description "Installs the artifacts to the local Maven repository."
-    configuration = configurations['archives']
-    repositories {
-        mavenDeployer {
-            repository url: "file://${System.properties['user.home']}/.m2/repository"
+    generateProtoTasks {
+        all().each { task ->
+            task.builtins {
+                java {
+                    option "lite"
+                }
+            }
         }
     }
 }
 
-task packageJavadoc(type: Jar, dependsOn: 'javadoc') {
+tasks.register('packageJavadoc', Jar) {
+    dependsOn javadoc
     from javadoc.destinationDir
-    classifier = 'javadoc'
+    archiveClassifier.set('javadoc')
 }
 
-task packageSources(type: Jar) {
+tasks.register('packageSources', Jar) {
     from sourceSets.main.allSource
-    classifier = 'sources'
+    archiveClassifier.set('sources')
 }
 
 artifacts {
-    archives(packageJavadoc) {
-        type = 'javadoc'
-    }
-
-    archives packageSources
+    archives(tasks.named('packageJavadoc'))
+    archives(tasks.named('packageSources'))
 }
 
+def isReleaseBuild() {
+    !version.toString().contains("SNAPSHOT")
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            artifact tasks.named('packageJavadoc')
+            artifact tasks.named('packageSources')
+
+            groupId "net.discdd"
+            artifactId "DDD-signal-protocol-java"
+            version "2.8.1"
+
+            pom {
+                setName("DDD-signal-protocol-java")
+                setDescription("DDD Signal Protocol cryptography library for Java")
+                setUrl("https://github.com/SJSU-CS-systems-group/DDD-libsignal-protocol-java")
+
+                licenses {
+                    license {
+                        setName("GPLv3")
+                        setUrl("https://www.gnu.org/licenses/gpl-3.0.txt")
+                        setDistribution("repo")
+                    }
+                }
+
+                developers {
+                    developer {
+                        setName("Moxie Marlinspike")
+                    }
+                }
+
+                scm {
+                    setUrl("scm:git@github.com:SJSU-CS-systems-group/DDD-libsignal-protocol-java.git")
+                    setConnection("scm:git@github.com:SJSU-CS-systems-group/DDD-libsignal-protocol-java.git")
+                    setDeveloperConnection("scm:git@github.com:SJSU-CS-systems-group/DDD-libsignal-protocol-java.git")
+                }
+            }
+
+        }
+    }
+
+    repositories {
+        maven {
+            url = layout.buildDirectory.dir("local-repo")
+        }
+    }
+}
+
+signing {
+    required { isReleaseBuild() }
+    useInMemoryPgpKeys(System.getenv("SIGNING_KEY"), System.getenv("SIGNING_PASSWORD"))
+    sign publishing.publications.mavenJava
+}

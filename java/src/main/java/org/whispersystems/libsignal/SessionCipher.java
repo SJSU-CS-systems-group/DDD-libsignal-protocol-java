@@ -367,7 +367,7 @@ public class SessionCipher {
     ChainKey chainKey = getOrCreateChainKey(sessionState, theirEphemeral);
     MessageKeys messageKeys = getOrCreateMessageKeys(sessionState, theirEphemeral, chainKey, counter);
 
-    ciphertextMessage.verifyMac(messageVersion, sessionState.getRemoteIdentityKey(),
+    ciphertextMessage.verifyMac(sessionState.getRemoteIdentityKey(),
             sessionState.getLocalIdentityKey(), messageKeys.getMacKey());
 
     byte[] plaintext = getPlaintext(messageVersion, messageKeys, ciphertextMessage.getBody());
@@ -499,16 +499,15 @@ public class SessionCipher {
         System.arraycopy(buffer, 0,trailingBuffer,0, TRAILING_SIZE);
       }
       else {
-        int bytesToWriteIntoOutPut = max(0,(readCount + trailingCount) - TRAILING_SIZE); // All data - 32, write to outPutStream
-        int writeFromTrailing = min(bytesToWriteIntoOutPut, TRAILING_SIZE);        // Number of Bytes to Send to OutputStream
-        cipherOutputStream.write(trailingBuffer, 0, writeFromTrailing);
-        if(writeFromTrailing > 0) { //Avoid SystemCopyIssues
-          System.arraycopy(trailingBuffer, writeFromTrailing, trailingBuffer, 0,
-                  trailingCount - writeFromTrailing);
+        int bytesToWriteIntoOutput = max(0,(readCount + trailingCount) - TRAILING_SIZE); // All data - 32, write to outPutStream
+        if(bytesToWriteIntoOutput > 0) { //Avoid SystemCopyIssues
+          cipherOutputStream.write(trailingBuffer, 0, bytesToWriteIntoOutput);
+          System.arraycopy(trailingBuffer, bytesToWriteIntoOutput, trailingBuffer, 0,
+                  trailingCount - bytesToWriteIntoOutput);
         }
-        int trailingBufferOffset = trailingCount - bytesToWriteIntoOutPut;
+        int trailingBufferOffset = trailingCount - bytesToWriteIntoOutput;
         System.arraycopy(buffer, 0, trailingBuffer, trailingBufferOffset,  readCount);
-        trailingCount = min(trailingCount + readCount,TRAILING_SIZE);
+        trailingCount = trailingCount + readCount;
       }
     }
 

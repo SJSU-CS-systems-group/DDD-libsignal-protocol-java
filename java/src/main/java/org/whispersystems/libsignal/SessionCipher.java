@@ -123,7 +123,7 @@ public class SessionCipher {
    * @param  paddedMessage The plaintext message bytes, optionally padded to a constant multiple.
    * @return A ciphertext message encrypted to the recipient+device tuple.
    */
-  private CiphertextMessage encrypt(byte[] paddedMessage) throws UntrustedIdentityException {
+  public CiphertextMessage encrypt(byte[] paddedMessage) throws UntrustedIdentityException {
     synchronized (SESSION_LOCK) {
       SessionRecord sessionRecord = sessionStore.loadSession(remoteAddress);
       SessionState sessionState = sessionRecord.getSessionState();
@@ -158,9 +158,7 @@ public class SessionCipher {
   }
 
   /**
-   * Encrypt a message.a
-   *
-   * @return A ciphertext message encrypted to the recipient+device tuple.
+   * Encrypt a message using streams
    */
   public void encrypt(InputStream inputStream, OutputStream outputStream) throws IOException {
     synchronized (SESSION_LOCK) {

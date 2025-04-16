@@ -72,20 +72,7 @@ artifacts {
 }
 
 def isReleaseBuild() {
- !version.toString().contains("SNAPSHOT")
-}
-
-def getReleaseRepositoryUrl() {
-  hasProperty('sonatypeRepo') ?
-        sonatypeRepo : "https://oss.sonatype.org/service/local/staging/deploy/maven2/"
-}
-
-def getRepositoryUsername() {
-  hasProperty('whisperSonatypeUsername') ? whisperSonatypeUsername : ""
-}
-
-def getRepositoryPassword() {
-  hasProperty('whisperSonatypePassword') ? whisperSonatypePassword : ""
+    !version.toString().contains("SNAPSHOT")
 }
 
 publishing {
@@ -96,51 +83,48 @@ publishing {
             artifact tasks.named('packageJavadoc')
             artifact tasks.named('packageSources')
 
-            groupId group_info
-            artifactId archivesBaseName
-            version version_number
+            groupId "net.discdd"
+            artifactId "DDD-signal-protocol-java"
+            version "2.8.1"
 
-pom {
-    setName("signal-protocol-java")
-    setDescription("Signal Protocol cryptography library for Java")
-    setUrl("https://github.com/WhisperSystems/libsignal-android")
+            pom {
+                setName("DDD-signal-protocol-java")
+                setDescription("DDD Signal Protocol cryptography library for Java")
+                setUrl("https://github.com/SJSU-CS-systems-group/DDD-libsignal-protocol-java")
 
-    licenses {
-        license {
-            setName("GPLv3")
-            setUrl("https://www.gnu.org/licenses/gpl-3.0.txt")
-            setDistribution("repo")
-        }
-    }
+                licenses {
+                    license {
+                        setName("GPLv3")
+                        setUrl("https://www.gnu.org/licenses/gpl-3.0.txt")
+                        setDistribution("repo")
+                    }
+                }
 
-    developers {
-        developer {
-            setName("Moxie Marlinspike")
-        }
-    }
+                developers {
+                    developer {
+                        setName("Moxie Marlinspike")
+                    }
+                }
 
-    scm {
-        setUrl("scm:git@github.com:WhisperSystems/libsignal-android.git")
-        setConnection("scm:git@github.com:WhisperSystems/libsignal-android.git")
-        setDeveloperConnection("scm:git@github.com:WhisperSystems/libsignal-android.git")
-    }
-}
+                scm {
+                    setUrl("scm:git@github.com:SJSU-CS-systems-group/DDD-libsignal-protocol-java.git")
+                    setConnection("scm:git@github.com:SJSU-CS-systems-group/DDD-libsignal-protocol-java.git")
+                    setDeveloperConnection("scm:git@github.com:SJSU-CS-systems-group/DDD-libsignal-protocol-java.git")
+                }
+            }
 
         }
     }
 
     repositories {
         maven {
-            url = uri(getReleaseRepositoryUrl())
-            credentials {
-                username = getRepositoryUsername()
-                password = getRepositoryPassword()
-            }
+            url = layout.buildDirectory.dir("local-repo")
         }
     }
 }
 
 signing {
     required { isReleaseBuild() }
+    useInMemoryPgpKeys(System.getenv("SIGNING_KEY"), System.getenv("SIGNING_PASSWORD"))
     sign publishing.publications.mavenJava
 }

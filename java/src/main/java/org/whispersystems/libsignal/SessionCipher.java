@@ -625,7 +625,8 @@ public class SessionCipher {
     cipherOutputStream.close();
     var calculatedMac = ByteUtil.trim(mac.doFinal(), 8);
     if (Arrays.compare(trailingBuffer, calculatedMac) != 0) {
-      throw new InvalidMessageException("Bad Mac!");
+      throw new InvalidMessageException("Bad Mac! Got " + Base64.getEncoder().encodeToString(trailingBuffer)
+      + " calculated " + Base64.getEncoder().encodeToString(calculatedMac));
     }
   }
 }

@@ -30,14 +30,18 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.stream.Stream;
 
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherOutputStream;
 import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.Mac;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -464,12 +468,9 @@ public class SessionCipher {
       //PrevCounter
       outputStream.write(ByteUtil.intToByteArray(previousCounter));
 
-      //Cipher Text Message
-      getCiphertext(sessionVersion, messageKeys, inputStream, outputStream);
-
-      //outputStream.write(new byte[16]);
-      //Mac
-      outputStream.write(messageKeys.getMacKey().getEncoded());
+      // since we are encrypting, we are the receiver and remote is the sender
+      getCiphertext(sessionVersion, sessionState.getLocalIdentityKey().getPublicKey(),
+              sessionState.getRemoteIdentityKey().getPublicKey(), messageKeys, inputStream, outputStream);
 
       // Update session state
       sessionState.setSenderChainKey(chainKey.getNextChainKey());
@@ -477,7 +478,8 @@ public class SessionCipher {
     }
   }
 
-  public void decrypt(InputStream inputStream, OutputStream outputStream) throws InvalidMessageException, DuplicateMessageException, NoSessionException, IOException, InvalidKeyException {
+  public void decrypt(InputStream inputStream, OutputStream outputStream) throws InvalidMessageException,
+          DuplicateMessageException, NoSessionException, IOException, InvalidKeyException {
     synchronized (SESSION_LOCK) {
       if (!sessionStore.containsSession(remoteAddress)) {
         throw new NoSessionException("No session for: " + remoteAddress);
@@ -527,13 +529,10 @@ public class SessionCipher {
       ChainKey chainKey = getOrCreateChainKey(sessionState, theirEphemeral);
       MessageKeys messageKeys = getOrCreateMessageKeys(sessionState, theirEphemeral, chainKey, counter);
 
-
-
-      // Verify the Mac
-      byte[] mac = getPlaintext(version, messageKeys ,inputStream, outputStream);
-      if(messageKeys.getMacKey().equals(mac)){
-        throw new InvalidMessageException("Bad Mac!");
-      }
+      // since we are decrypting, we are the receiver and remote is the sender
+      getPlaintext(version, sessionState.getRemoteIdentityKey().getPublicKey(),
+              sessionState.getLocalIdentityKey().getPublicKey(),
+              messageKeys ,inputStream, outputStream);
       // Clear any unacknowledged PreKey messages
       sessionState.clearUnacknowledgedPreKeyMessage();
 
@@ -549,29 +548,53 @@ public class SessionCipher {
   }
 
 
-  private void getCiphertext(int version, MessageKeys messageKeys, InputStream plaintext, OutputStream cipherText) throws IOException {
+  private void getCiphertext(int version, ECPublicKey senderIdentityKey, ECPublicKey receiverIdentityKey,
+                             MessageKeys messageKeys, InputStream plaintext, OutputStream cipherText) throws IOException {
     try {
       Cipher cipher = getCipher(Cipher.ENCRYPT_MODE, messageKeys.getCipherKey(), messageKeys.getIv());
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(messageKeys.getMacKey());
+      mac.update(senderIdentityKey.serialize());
+      mac.update(receiverIdentityKey.serialize());
+
       byte[] bytes = new byte[64 * 1024];
       int rc;
       while ((rc = plaintext.read(bytes)) > 0) {
-        cipherText.write(cipher.update(bytes, 0, rc));
+        byte[] cipherBytes = cipher.update(bytes, 0, rc);
+        cipherText.write(cipherBytes);
+        mac.update(cipherBytes);
       }
-      cipherText.write(cipher.doFinal());
-
-    } catch (IllegalBlockSizeException | BadPaddingException e) {
+      byte[] cipherBytes = cipher.doFinal();
+      cipherText.write(cipherBytes);
+      mac.update(cipherBytes);
+      // 8 bytes of MAC are expected at the end
+      byte[] calculatedMac = ByteUtil.trim(mac.doFinal(), 8);
+      cipherText.write(calculatedMac);
+    } catch (IllegalBlockSizeException | BadPaddingException | NoSuchAlgorithmException |
+             java.security.InvalidKeyException e) {
       throw new AssertionError(e);
     }
   }
 
-  private byte[] getPlaintext(int version, MessageKeys messageKeys, InputStream inputStream,
+  private void getPlaintext(int version, ECPublicKey senderIdentityKey, ECPublicKey receiverIdentityKey,
+                              MessageKeys messageKeys, InputStream inputStream,
                               OutputStream outputStream) throws InvalidMessageException, IOException {
     Cipher cipher = getCipher(Cipher.DECRYPT_MODE, messageKeys.getCipherKey(), messageKeys.getIv());
     CipherOutputStream cipherOutputStream = new CipherOutputStream(outputStream,cipher);
 
+    Mac mac;
+    try {
+      mac = Mac.getInstance("HmacSHA256");
+      mac.init(messageKeys.getMacKey());
+    } catch (NoSuchAlgorithmException | java.security.InvalidKeyException e) {
+      throw new AssertionError(e);
+    }
+
+    mac.update(senderIdentityKey.serialize());
+    mac.update(receiverIdentityKey.serialize());
 
     byte[] buffer = new byte[STREAM_READ_SIZE];  // ReadSize was modified during testing
-    int TRAILING_SIZE = 32;
+    int TRAILING_SIZE = 8;
     byte[] trailingBuffer = new byte[TRAILING_SIZE]; // To store the last 32 bytes
     int trailingCount = 0; //How full our trailingBuffer is
 
@@ -579,13 +602,17 @@ public class SessionCipher {
     while ((readCount = inputStream.read(buffer)) > 0) {
       if (readCount > TRAILING_SIZE) {
         cipherOutputStream.write(trailingBuffer, 0 , trailingCount);
-        cipherOutputStream.write(buffer, 0, readCount - TRAILING_SIZE);
-        System.arraycopy(buffer, 0,trailingBuffer,0, TRAILING_SIZE);
-      }
-      else {
+        mac.update(trailingBuffer, 0, trailingCount);
+        int bytesToWriteToOutput = readCount - TRAILING_SIZE;
+        cipherOutputStream.write(buffer, 0, bytesToWriteToOutput);
+        mac.update(buffer, 0, bytesToWriteToOutput);
+        System.arraycopy(buffer, bytesToWriteToOutput, trailingBuffer,0, TRAILING_SIZE);
+        trailingCount = TRAILING_SIZE;
+      } else {
         int bytesToWriteIntoOutput = max(0,(readCount + trailingCount) - TRAILING_SIZE); // All data - 32, write to outPutStream
         if(bytesToWriteIntoOutput > 0) { //Avoid SystemCopyIssues
           cipherOutputStream.write(trailingBuffer, 0, bytesToWriteIntoOutput);
+          mac.update(trailingBuffer, 0, bytesToWriteIntoOutput);
           System.arraycopy(trailingBuffer, bytesToWriteIntoOutput, trailingBuffer, 0,
                   trailingCount - bytesToWriteIntoOutput);
         }
@@ -596,6 +623,10 @@ public class SessionCipher {
     }
 
     cipherOutputStream.close();
-    return trailingBuffer;
+    var calculatedMac = ByteUtil.trim(mac.doFinal(), 8);
+    if (Arrays.compare(trailingBuffer, calculatedMac) != 0) {
+      throw new InvalidMessageException("Bad Mac! Got " + Base64.getEncoder().encodeToString(trailingBuffer)
+      + " calculated " + Base64.getEncoder().encodeToString(calculatedMac));
+    }
   }
 }

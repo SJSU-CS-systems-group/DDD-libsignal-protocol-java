@@ -19,6 +19,7 @@ import org.whispersystems.libsignal.util.ByteUtil;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
+import java.util.Base64;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -127,7 +128,6 @@ public class SignalMessage implements CiphertextMessage {
     try {
       Mac mac = Mac.getInstance("HmacSHA256");
       mac.init(macKey);
-
       mac.update(senderIdentityKey.getPublicKey().serialize());
       mac.update(receiverIdentityKey.getPublicKey().serialize());
 

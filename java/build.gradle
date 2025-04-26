@@ -11,7 +11,6 @@ java {
     }
 }
 
-archivesBaseName = "DDD-signal-protocol-java"
 version = version_number
 group = group_info
 
@@ -83,7 +82,7 @@ publishing {
             artifact tasks.named('packageJavadoc')
             artifact tasks.named('packageSources')
 
-            groupId = "discdd.net"
+            groupId = "net.discdd"
             artifactId = "DDD-signal-protocol-java"
             version project.version
 

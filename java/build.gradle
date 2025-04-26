@@ -83,8 +83,8 @@ publishing {
             artifact tasks.named('packageJavadoc')
             artifact tasks.named('packageSources')
 
-            groupId project.group
-            artifactId archivesBaseName
+            groupId = "discdd.net"
+            artifactId = "DDD-signal-protocol-java"
             version project.version
 
             pom {

@@ -54,6 +54,10 @@ protobuf {
     }
 }
 
+tasks.withType(Jar).configureEach {
+    archiveBaseName.set("ddd-signal-protocol-java")
+}
+
 tasks.register('packageJavadoc', Jar) {
     dependsOn javadoc
     from javadoc.destinationDir
@@ -83,11 +87,11 @@ publishing {
             artifact tasks.named('packageSources')
 
             groupId = "net.discdd"
-            artifactId = "DDD-signal-protocol-java"
+            artifactId = "ddd-signal-protocol-java"
             version project.version
 
             pom {
-                setName("DDD-signal-protocol-java")
+                setName("ddd-signal-protocol-java")
                 setDescription("DDD Signal Protocol cryptography library for Java")
                 setUrl("https://github.com/SJSU-CS-systems-group/DDD-libsignal-protocol-java")
 

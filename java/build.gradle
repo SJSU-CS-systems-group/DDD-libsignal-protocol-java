@@ -11,7 +11,6 @@ java {
     }
 }
 
-archivesBaseName = "DDD-signal-protocol-java"
 version = version_number
 group = group_info
 
@@ -55,6 +54,10 @@ protobuf {
     }
 }
 
+tasks.withType(Jar).configureEach {
+    archiveBaseName.set("ddd-signal-protocol-java")
+}
+
 tasks.register('packageJavadoc', Jar) {
     dependsOn javadoc
     from javadoc.destinationDir
@@ -83,12 +86,12 @@ publishing {
             artifact tasks.named('packageJavadoc')
             artifact tasks.named('packageSources')
 
-            groupId project.group
-            artifactId archivesBaseName
+            groupId = "net.discdd"
+            artifactId = "ddd-signal-protocol-java"
             version project.version
 
             pom {
-                setName("DDD-signal-protocol-java")
+                setName("ddd-signal-protocol-java")
                 setDescription("DDD Signal Protocol cryptography library for Java")
                 setUrl("https://github.com/SJSU-CS-systems-group/DDD-libsignal-protocol-java")
 
@@ -118,7 +121,12 @@ publishing {
 
     repositories {
         maven {
-            url = layout.buildDirectory.dir("local-repo")
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/SJSU-CS-systems-group/DDD")
+            credentials {
+                username = project.findProperty("gpr.user") ?: System.getenv("USERNAME")
+                password = project.findProperty("gpr.key") ?: System.getenv("TOKEN")
+            }
         }
     }
 }

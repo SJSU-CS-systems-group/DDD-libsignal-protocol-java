@@ -495,55 +495,57 @@ public class SessionCipher {
       if (!sessionState.hasSenderChain()) {
         throw new InvalidMessageException("Uninitialized session!");
       }
+      try {
+        byte[] versionArr = new byte[1];
+        if (inputStream.read(versionArr) == -1) {
+          throw new InvalidMessageException("No Version Found");
+        }
+        int version = versionArr[0];
+        if (version < 3) {
+          throw new InvalidMessageException("Version is less than 3");
+        }
+        byte[] ratchetKeyInfo = new byte[1];
+        if (inputStream.read(ratchetKeyInfo) == -1) {
+          throw new InvalidMessageException("No Ratchet KeyInfo");
+        }
+        byte[] ratchetKey = new byte[ratchetKeyInfo[0]];
+        if (inputStream.read(ratchetKey) != ratchetKeyInfo[0]) {
+          throw new InvalidMessageException("Not enough Ratchet Key Bytes Found:"
+                  + ratchetKey.length + " Expected:" + ratchetKeyInfo[0]);
+        }
 
-      byte[] versionArr = new byte[1];
-      if(inputStream.read(versionArr) == -1){
-        throw new InvalidMessageException("No Version Found");
+        //Counter
+        byte[] counterArr = new byte[4];
+        inputStream.read(counterArr);
+        int counter = ByteUtil.byteArrayToInt(counterArr);
+
+        //PrevCounter
+        byte[] prevCounterArr = new byte[4];
+        inputStream.read(prevCounterArr);
+        int prevCounter = ByteUtil.byteArrayToInt(counterArr);
+
+        ECPublicKey theirEphemeral = Curve.decodePoint(ratchetKey, 0);
+
+        ChainKey chainKey = getOrCreateChainKey(sessionState, theirEphemeral);
+        MessageKeys messageKeys = getOrCreateMessageKeys(sessionState, theirEphemeral, chainKey, counter);
+
+        // since we are decrypting, we are the receiver and remote is the sender
+        getPlaintext(version, sessionState.getRemoteIdentityKey().getPublicKey(),
+                sessionState.getLocalIdentityKey().getPublicKey(),
+                messageKeys, inputStream, outputStream);
+        // Clear any unacknowledged PreKey messages
+        sessionState.clearUnacknowledgedPreKeyMessage();
+      }catch(InvalidMessageException e){
+        throw new InvalidMessageException(e.getMessage());
+      }finally {
+        if (previousStates.hasNext()) {
+          previousStates.remove();
+          sessionRecord.promoteState(sessionState);
+        } else {
+          sessionRecord.setState(sessionState);
+        }
+        sessionStore.storeSession(remoteAddress, sessionRecord);
       }
-      int version = versionArr[0];
-      if(version < 3){
-        throw new InvalidMessageException("Version is less than 3");
-      }
-      byte[] ratchetKeyInfo = new byte[1];
-      if(inputStream.read(ratchetKeyInfo) == -1){
-        throw new InvalidMessageException("No Ratchet KeyInfo");
-      }
-      byte[] ratchetKey = new byte[ratchetKeyInfo[0]];
-      if(inputStream.read(ratchetKey) != ratchetKeyInfo[0]){
-        throw new InvalidMessageException("Not enough Ratchet Key Bytes Found:"
-                + ratchetKey.length +" Expected:" + ratchetKeyInfo[0]);
-      }
-
-      //Counter
-      byte[] counterArr = new byte[4];
-      inputStream.read(counterArr);
-      int counter = ByteUtil.byteArrayToInt(counterArr);
-
-      //PrevCounter
-      byte[] prevCounterArr = new byte[4];
-      inputStream.read(prevCounterArr);
-      int prevCounter = ByteUtil.byteArrayToInt(counterArr);
-
-      ECPublicKey theirEphemeral = Curve.decodePoint(ratchetKey,0);
-
-      ChainKey chainKey = getOrCreateChainKey(sessionState, theirEphemeral);
-      MessageKeys messageKeys = getOrCreateMessageKeys(sessionState, theirEphemeral, chainKey, counter);
-
-      // since we are decrypting, we are the receiver and remote is the sender
-      getPlaintext(version, sessionState.getRemoteIdentityKey().getPublicKey(),
-              sessionState.getLocalIdentityKey().getPublicKey(),
-              messageKeys ,inputStream, outputStream);
-      // Clear any unacknowledged PreKey messages
-      sessionState.clearUnacknowledgedPreKeyMessage();
-
-      // Promote or store the session state
-      if (previousStates.hasNext()) {
-        previousStates.remove();
-        sessionRecord.promoteState(sessionState);
-      } else {
-        sessionRecord.setState(sessionState);
-      }
-      sessionStore.storeSession(remoteAddress, sessionRecord);
     }
   }
 

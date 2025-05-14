@@ -34,7 +34,7 @@ sourceSets {
 
 dependencies {
     implementation "org.whispersystems:curve25519-java:${curve25519_version}"
-    implementation 'com.google.protobuf:protobuf-java:3.23.4'
+    implementation 'com.google.protobuf:protobuf-java:4.31.0'
 
     testImplementation 'junit:junit:3.8.2'
 }

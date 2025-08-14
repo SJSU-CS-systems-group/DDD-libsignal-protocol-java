@@ -34,14 +34,14 @@ sourceSets {
 
 dependencies {
     implementation "org.whispersystems:curve25519-java:${curve25519_version}"
-    implementation 'com.google.protobuf:protobuf-java:3.23.4'
+    implementation 'com.google.protobuf:protobuf-java:4.32.0'
 
     testImplementation 'junit:junit:3.8.2'
 }
 
 protobuf {
     protoc {
-        artifact = 'com.google.protobuf:protoc:3.23.4'
+        artifact = 'com.google.protobuf:protoc:4.32.0'
     }
     generateProtoTasks {
         all().each { task ->

@@ -28,6 +28,9 @@ import org.whispersystems.libsignal.util.guava.Optional;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
@@ -445,7 +448,7 @@ public class SessionCipher {
   /**
    * Encrypt a message using streams
    */
-  public void encrypt(InputStream inputStream, OutputStream outputStream) throws IOException {
+  public boolean encrypt(InputStream inputStream, OutputStream outputStream) throws IOException {
     synchronized (SESSION_LOCK) {
       SessionRecord sessionRecord = sessionStore.loadSession(remoteAddress);
       SessionState sessionState = sessionRecord.getSessionState();
@@ -476,74 +479,95 @@ public class SessionCipher {
       sessionState.setSenderChainKey(chainKey.getNextChainKey());
       sessionStore.storeSession(remoteAddress, sessionRecord);
     }
+    return true;
   }
 
-  public void decrypt(InputStream inputStream, OutputStream outputStream) throws InvalidMessageException,
-          DuplicateMessageException, NoSessionException, IOException, InvalidKeyException {
-    synchronized (SESSION_LOCK) {
-      if (!sessionStore.containsSession(remoteAddress)) {
-        throw new NoSessionException("No session for: " + remoteAddress);
-      }
 
+    /**
+     *
+     * @param inputStream
+     * @param decryptedFile
+     * @return
+     * @throws IOException
+     */
+  public boolean decrypt(InputStream inputStream, Path decryptedFile) throws IOException{
       SessionRecord sessionRecord = sessionStore.loadSession(remoteAddress);
       Iterator<SessionState> previousStates = sessionRecord.getPreviousSessionStates().iterator();
-      List<Exception> exceptions = new LinkedList<>();
-
-      // Load session state
-      SessionState sessionState = previousStates.hasNext() ? new SessionState(previousStates.next())
-              : new SessionState(sessionRecord.getSessionState());
-      if (!sessionState.hasSenderChain()) {
-        throw new InvalidMessageException("Uninitialized session!");
+      while (previousStates.hasNext()) {
+         OutputStream outputStream = Files.newOutputStream(decryptedFile,StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+         SessionState sessionState = previousStates.next();
+         if(decrypt(inputStream,outputStream,sessionState)){
+             return true;
+         }
       }
+      return false;
+  }
+  public boolean decrypt(InputStream inputStream, OutputStream outputStream, SessionState sessionState){
+    synchronized (SESSION_LOCK) {
+        try {
+            if (!sessionStore.containsSession(remoteAddress)) {
+                throw new NoSessionException("No session for: " + remoteAddress);
+            }
 
-      byte[] versionArr = new byte[1];
-      if(inputStream.read(versionArr) == -1){
-        throw new InvalidMessageException("No Version Found");
-      }
-      int version = versionArr[0];
-      if(version < 3){
-        throw new InvalidMessageException("Version is less than 3");
-      }
-      byte[] ratchetKeyInfo = new byte[1];
-      if(inputStream.read(ratchetKeyInfo) == -1){
-        throw new InvalidMessageException("No Ratchet KeyInfo");
-      }
-      byte[] ratchetKey = new byte[ratchetKeyInfo[0]];
-      if(inputStream.read(ratchetKey) != ratchetKeyInfo[0]){
-        throw new InvalidMessageException("Not enough Ratchet Key Bytes Found:"
-                + ratchetKey.length +" Expected:" + ratchetKeyInfo[0]);
-      }
+            SessionRecord sessionRecord = sessionStore.loadSession(remoteAddress);
+            if (!identityKeyStore.isTrustedIdentity(remoteAddress, sessionRecord.getSessionState().getRemoteIdentityKey(), IdentityKeyStore.Direction.RECEIVING)) {
+                throw new UntrustedIdentityException(remoteAddress.getName(), sessionRecord.getSessionState().getRemoteIdentityKey());
+            }
+            identityKeyStore.saveIdentity(remoteAddress, sessionRecord.getSessionState().getRemoteIdentityKey());
+            Iterator<SessionState> previousStates = sessionRecord.getPreviousSessionStates().iterator();
+            List<Exception> exceptions = new LinkedList<>();
+            byte[] versionArr = new byte[1];
+            if (inputStream.read(versionArr) == -1) {
+                throw new InvalidMessageException("No Version Found");
+            }
+            int version = versionArr[0];
+            if (version < 3) {
+                throw new InvalidMessageException("Version is less than 3");
+            }
+            byte[] ratchetKeyInfo = new byte[1];
+            if (inputStream.read(ratchetKeyInfo) == -1) {
+                throw new InvalidMessageException("No Ratchet KeyInfo");
+            }
+            byte[] ratchetKey = new byte[ratchetKeyInfo[0]];
+            if (inputStream.read(ratchetKey) != ratchetKeyInfo[0]) {
+                throw new InvalidMessageException("Not enough Ratchet Key Bytes Found:"
+                        + ratchetKey.length + " Expected:" + ratchetKeyInfo[0]);
+            }
 
-      //Counter
-      byte[] counterArr = new byte[4];
-      inputStream.read(counterArr);
-      int counter = ByteUtil.byteArrayToInt(counterArr);
+            //Counter
+            byte[] counterArr = new byte[4];
+            inputStream.read(counterArr);
+            int counter = ByteUtil.byteArrayToInt(counterArr);
 
-      //PrevCounter
-      byte[] prevCounterArr = new byte[4];
-      inputStream.read(prevCounterArr);
-      int prevCounter = ByteUtil.byteArrayToInt(counterArr);
+            //PrevCounter
+            byte[] prevCounterArr = new byte[4];
+            inputStream.read(prevCounterArr);
+            int prevCounter = ByteUtil.byteArrayToInt(counterArr);
 
-      ECPublicKey theirEphemeral = Curve.decodePoint(ratchetKey,0);
+            ECPublicKey theirEphemeral = Curve.decodePoint(ratchetKey, 0);
 
-      ChainKey chainKey = getOrCreateChainKey(sessionState, theirEphemeral);
-      MessageKeys messageKeys = getOrCreateMessageKeys(sessionState, theirEphemeral, chainKey, counter);
+            ChainKey chainKey = getOrCreateChainKey(sessionState, theirEphemeral);
+            MessageKeys messageKeys = getOrCreateMessageKeys(sessionState, theirEphemeral, chainKey, counter);
 
-      // since we are decrypting, we are the receiver and remote is the sender
-      getPlaintext(version, sessionState.getRemoteIdentityKey().getPublicKey(),
-              sessionState.getLocalIdentityKey().getPublicKey(),
-              messageKeys ,inputStream, outputStream);
-      // Clear any unacknowledged PreKey messages
-      sessionState.clearUnacknowledgedPreKeyMessage();
+            // since we are decrypting, we are the receiver and remote is the sender
+            getPlaintext(version, sessionState.getRemoteIdentityKey().getPublicKey(),
+                    sessionState.getLocalIdentityKey().getPublicKey(),
+                    messageKeys, inputStream, outputStream);
+            // Clear any unacknowledged PreKey messages
+            sessionState.clearUnacknowledgedPreKeyMessage();
 
-      // Promote or store the session state
-      if (previousStates.hasNext()) {
-        previousStates.remove();
-        sessionRecord.promoteState(sessionState);
-      } else {
-        sessionRecord.setState(sessionState);
-      }
-      sessionStore.storeSession(remoteAddress, sessionRecord);
+            // Promote or store the session state
+            if (previousStates.hasNext()) {
+                previousStates.remove();
+                sessionRecord.promoteState(sessionState);
+            } else {
+                sessionRecord.setState(sessionState);
+            }
+            sessionStore.storeSession(remoteAddress, sessionRecord);
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
   }
 

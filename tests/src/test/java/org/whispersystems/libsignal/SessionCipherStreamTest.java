@@ -15,12 +15,16 @@ import org.whispersystems.libsignal.util.guava.Optional;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.List;
 
 public class SessionCipherStreamTest extends TestCase {
     private SessionCipher aliceCipher;
     private SessionCipher bobCipher;
+    private SignalProtocolStore aliceStore;
+    private SignalProtocolStore bobStore;
 
     private void initializeSessionsV3(SessionState aliceSessionState, SessionState bobSessionState) throws InvalidKeyException {
         ECKeyPair aliceIdentityKeyPair = Curve.generateKeyPair();
@@ -63,8 +67,8 @@ public class SessionCipherStreamTest extends TestCase {
 
         initializeSessionsV3(aliceSessionRecord.getSessionState(), bobSessionRecord.getSessionState());
 
-        SignalProtocolStore aliceStore = new TestInMemorySignalProtocolStore();
-        SignalProtocolStore bobStore = new TestInMemorySignalProtocolStore();
+        aliceStore  = new TestInMemorySignalProtocolStore();
+        bobStore = new TestInMemorySignalProtocolStore();
 
         aliceStore.storeSession(new SignalProtocolAddress("+14159999999", 1), aliceSessionRecord);
         bobStore.storeSession(new SignalProtocolAddress("+14158888888", 1), bobSessionRecord);
@@ -97,8 +101,11 @@ public class SessionCipherStreamTest extends TestCase {
             aliceCipher.encrypt(new ByteArrayInputStream(message.getBytes()), cipherText);
             ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             SessionCipher.STREAM_READ_SIZE = streamSize;
-            bobCipher.decrypt(new ByteArrayInputStream(cipherText.toByteArray()), outputStream);
+            bobCipher.decrypt(new ByteArrayInputStream(cipherText.toByteArray()), outputStream, bobStore.loadSession(new SignalProtocolAddress("+14158888888", 1)).getSessionState());
             String decrypted = outputStream.toString(StandardCharsets.UTF_8);
+            assertEquals(message, decrypted);
+            bobCipher.decrypt(new ByteArrayInputStream(cipherText.toByteArray()), outputStream, bobStore.loadSession(new SignalProtocolAddress("+14158888888", 1)).getSessionState());
+            decrypted = outputStream.toString(StandardCharsets.UTF_8);
             assertEquals(message, decrypted);
         }
         SessionCipher.STREAM_READ_SIZE = streamSizes.get(0);

@@ -518,8 +518,6 @@ public class SessionCipher {
                 throw new UntrustedIdentityException(remoteAddress.getName(), sessionRecord.getSessionState().getRemoteIdentityKey());
             }
             identityKeyStore.saveIdentity(remoteAddress, sessionRecord.getSessionState().getRemoteIdentityKey());
-            Iterator<SessionState> previousStates = sessionRecord.getPreviousSessionStates().iterator();
-            List<Exception> exceptions = new LinkedList<>();
             byte[] versionArr = new byte[1];
             if (inputStream.read(versionArr) == -1) {
                 throw new InvalidMessageException("No Version Found");

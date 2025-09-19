@@ -448,7 +448,7 @@ public class SessionCipher {
   /**
    * Encrypt a message using streams
    */
-  public boolean encrypt(InputStream inputStream, OutputStream outputStream) throws IOException {
+  public void encrypt(InputStream inputStream, OutputStream outputStream) throws IOException {
     synchronized (SESSION_LOCK) {
       SessionRecord sessionRecord = sessionStore.loadSession(remoteAddress);
       SessionState sessionState = sessionRecord.getSessionState();
@@ -479,27 +479,31 @@ public class SessionCipher {
       sessionState.setSenderChainKey(chainKey.getNextChainKey());
       sessionStore.storeSession(remoteAddress, sessionRecord);
     }
-    return true;
   }
 
 
     /**
-     *
-     * @param inputStream
+     * Paths here to ensure rewinding if multiple keys need to get checked.
+     * @param payLoadPath
      * @param decryptedFile
      * @return
      * @throws IOException
      */
-  public boolean decrypt(InputStream inputStream, Path decryptedFile) throws IOException{
+  public boolean decrypt(Path payLoadPath, Path decryptedFile) throws IOException{
       SessionRecord sessionRecord = sessionStore.loadSession(remoteAddress);
-      Iterator<SessionState> previousStates = sessionRecord.getPreviousSessionStates().iterator();
-      while (previousStates.hasNext()) {
-         OutputStream outputStream = Files.newOutputStream(decryptedFile,StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
-         SessionState sessionState = previousStates.next();
-         if(decrypt(inputStream,outputStream,sessionState)){
+      OutputStream outputStream = Files.newOutputStream(decryptedFile,StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+      InputStream inputStream = Files.newInputStream(payLoadPath);
+      if(decrypt(inputStream,outputStream,sessionRecord.getSessionState())){
+          return true;
+      }
+      for(SessionState state : sessionRecord.getPreviousSessionStates()){
+          outputStream = Files.newOutputStream(decryptedFile,StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+          inputStream = Files.newInputStream(payLoadPath);
+         if(decrypt(inputStream,outputStream,state)){
              return true;
          }
       }
+      //No previous session keys work
       return false;
   }
   public boolean decrypt(InputStream inputStream, OutputStream outputStream, SessionState sessionState){
@@ -555,14 +559,7 @@ public class SessionCipher {
                     messageKeys, inputStream, outputStream);
             // Clear any unacknowledged PreKey messages
             sessionState.clearUnacknowledgedPreKeyMessage();
-
-            // Promote or store the session state
-            if (previousStates.hasNext()) {
-                previousStates.remove();
-                sessionRecord.promoteState(sessionState);
-            } else {
-                sessionRecord.setState(sessionState);
-            }
+            sessionRecord.promoteState(sessionState);
             sessionStore.storeSession(remoteAddress, sessionRecord);
             return true;
         } catch (Exception e) {

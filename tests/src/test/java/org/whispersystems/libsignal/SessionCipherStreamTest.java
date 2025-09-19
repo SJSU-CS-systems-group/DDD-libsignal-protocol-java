@@ -13,10 +13,10 @@ import org.whispersystems.libsignal.state.SessionState;
 import org.whispersystems.libsignal.state.SignalProtocolStore;
 import org.whispersystems.libsignal.util.guava.Optional;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
@@ -93,19 +93,22 @@ public class SessionCipherStreamTest extends TestCase {
      * Encrypts with StreamedProcess
      * Decrypts with Array
      */
+
     public void test2StreamingEncryptStreamingDecrypt() throws Exception {
         var streamSizes = List.of(SessionCipher.STREAM_READ_SIZE, 17, 31, 1000);
+        Path tempPathOut = File.createTempFile("TestingFileOut", ".txt").toPath();
+        Path tempPathIn = File.createTempFile("TestingFileIn", ".txt").toPath();
         for (int streamSize : streamSizes) {
             String message = "Hello, World!".repeat(100);
-            ByteArrayOutputStream cipherText = new ByteArrayOutputStream();
+            OutputStream cipherText = Files.newOutputStream(tempPathIn);
             aliceCipher.encrypt(new ByteArrayInputStream(message.getBytes()), cipherText);
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
             SessionCipher.STREAM_READ_SIZE = streamSize;
-            bobCipher.decrypt(new ByteArrayInputStream(cipherText.toByteArray()), outputStream, bobStore.loadSession(new SignalProtocolAddress("+14158888888", 1)).getSessionState());
-            String decrypted = outputStream.toString(StandardCharsets.UTF_8);
+            bobCipher.decrypt(tempPathIn,tempPathOut);
+            String decrypted = Files.readString(tempPathOut, StandardCharsets.UTF_8);
             assertEquals(message, decrypted);
-            bobCipher.decrypt(new ByteArrayInputStream(cipherText.toByteArray()), outputStream, bobStore.loadSession(new SignalProtocolAddress("+14158888888", 1)).getSessionState());
-            decrypted = outputStream.toString(StandardCharsets.UTF_8);
+            bobCipher.decrypt(tempPathIn,tempPathOut);
+            decrypted = Files.readString(tempPathOut, StandardCharsets.UTF_8);
+            System.out.println("New Decrypted " + decrypted);
             assertEquals(message, decrypted);
         }
         SessionCipher.STREAM_READ_SIZE = streamSizes.get(0);

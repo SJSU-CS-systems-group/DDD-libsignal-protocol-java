@@ -38,7 +38,7 @@ import static org.whispersystems.libsignal.state.StorageProtos.SessionStructure;
 
 public class SessionState {
 
-  private static final int MAX_MESSAGE_KEYS = 2000;
+  private static final int MAX_MESSAGE_KEYS = 10;
 
   private SessionStructure sessionStructure;
 

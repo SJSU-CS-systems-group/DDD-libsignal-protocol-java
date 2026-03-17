@@ -390,8 +390,8 @@ public class SessionCipher {
       }
     }
 
-    if (counter - chainKey.getIndex() > 2000) {
-      throw new InvalidMessageException("Over 2000 messages into the future!");
+    if (counter - chainKey.getIndex() > 10) {
+      throw new InvalidMessageException("Over 10 messages into the future!");
     }
 
     while (chainKey.getIndex() < counter) {

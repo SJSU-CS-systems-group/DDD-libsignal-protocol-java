@@ -53,11 +53,11 @@ public class SessionCipherTest extends TestCase {
 
     List<CiphertextMessage> inflight = new LinkedList<>();
 
-    for (int i=0;i<2010;i++) {
+    for (int i=0;i<15;i++) {
       inflight.add(aliceCipher.encrypt("you've never been so hungry, you've never been so cold".getBytes()));
     }
 
-    bobCipher.decrypt(new SignalMessage(inflight.get(1000).serialize()));
+    bobCipher.decrypt(new SignalMessage(inflight.get(5).serialize()));
     bobCipher.decrypt(new SignalMessage(inflight.get(inflight.size()-1).serialize()));
 
     try {

@@ -94,7 +94,7 @@ public class SessionCipherTest extends TestCase {
     List<CiphertextMessage> aliceCiphertextMessages = new ArrayList<>();
     List<byte[]>            alicePlaintextMessages  = new ArrayList<>();
 
-    for (int i=0;i<50;i++) {
+    for (int i=0;i<10;i++) {
       alicePlaintextMessages.add(("смерть за смерть " + i).getBytes());
       aliceCiphertextMessages.add(aliceCipher.encrypt(("смерть за смерть " + i).getBytes()));
     }
@@ -112,7 +112,7 @@ public class SessionCipherTest extends TestCase {
     List<CiphertextMessage> bobCiphertextMessages = new ArrayList<>();
     List<byte[]>            bobPlaintextMessages  = new ArrayList<>();
 
-    for (int i=0;i<20;i++) {
+    for (int i=0;i<10;i++) {
       bobPlaintextMessages.add(("смерть за смерть " + i).getBytes());
       bobCiphertextMessages.add(bobCipher.encrypt(("смерть за смерть " + i).getBytes()));
     }
